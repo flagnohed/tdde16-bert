@@ -15,19 +15,28 @@ DATASETS = ["anforande-200910", "anforande-201314",
 
 nlp = spacy.load("sv_core_news_sm")
 
-def preprocess_speech(text):
-    # remove HTML tags
-    re.sub(re.compile("<.*?>"), "", text)
-    
-    doc = nlp(text)
-    processed_tokens = []
-    for token in doc:
-        if not token.is_stop and token.is_alpha:
-            # https://www.bitext.com/blog/lemmatization-to-enhance-topic-modeling-results/
-            # they found it better to use the lemma for topic modeling
-            processed_tokens += [token.lemma_]  
-    return " ".join(processed_tokens)
+# preprocess all speeches from an entire year
+def preprocess_zip_lda(filename):
+    out = []
+    with ZipFile("raw_datasets/" + filename + ".json.zip", 'r') as dataset:
+        for file in tqdm(dataset.namelist()):
+            if file.endswith(".json"):
+                with dataset.open(file) as f:
+                    data = json.load(f)
+                data = data["anforande"]
 
+                if not data["anforandetext"]:
+                    continue
+                speech = data["anforandetext"]
+                doc = nlp(speech)
+                speech_tokens = []
+                for token in doc:
+                    if not token.is_stop and token.is_alpha and len(token) > 2:
+                        speech_tokens.append(token.text)
+                out.append(speech_tokens)
+           
+    return out
+                
 
 def preprocess_zips():
     """ Takes the relevant information from each speech
@@ -35,7 +44,6 @@ def preprocess_zips():
     """
 
     speech_data = []
-    # filetypes = set()
     for name in DATASETS: 
         with ZipFile("raw_datasets/" + name + ".json.zip", 'r') as dataset:
             print(name)
@@ -48,7 +56,8 @@ def preprocess_zips():
                     if not data["anforandetext"]:
                         continue
 
-                    speech = preprocess_speech(data["anforandetext"])
+                    speech = data["anforandetext"]
+                    re.sub(re.compile("<.*?>"), "", speech)  # remove html tags
 
                     relevant_data = {
                         "year": data["dok_rm"],
