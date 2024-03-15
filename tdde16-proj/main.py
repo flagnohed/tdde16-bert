@@ -6,6 +6,9 @@ from umap import UMAP
 import hdbscan
 import gensim.corpora as corpora
 from gensim.models.coherencemodel import CoherenceModel
+from gensim.models import LdaModel
+from gensim.corpora.dictionary import Dictionary
+import preprocess as pp
 
 def calculate_coherence(model, topics, speeches):
     # this function is blatantly stolen from:
@@ -72,11 +75,11 @@ def main():
     topic_df.to_json("topic_df.json")
 
 
-def get_graphs():
+def get_graphs_bert():
     df = pd.read_json("topic_df.json")
 
     model = BERTopic.load("models",)
-    
+    """
     for y in set(df["year"]):
         temp_df = df.loc[df["year"] == y]
         print(temp_df.head())
@@ -85,7 +88,7 @@ def get_graphs():
         fig = model.visualize_topics_over_time(tot, top_n_topics=6)
         
         fig.write_html(y[:4]+"_over_time_3.html")
-    
+    """
     topics = model.get_topic_info().head(20)
     print(topics)
     print("coherence: ", calculate_coherence(model, df["topic"].to_list(), df["speech"].to_list()))
@@ -95,9 +98,33 @@ def get_graphs():
     print('Total number of outliers: ', model.get_topic_freq(-1))
 
 
+def train_lda():
+    num_topics = 6
+    for d in pp.DATASETS:
+        speeches = pp.preprocess_zip_lda(d)    
+        dictionary = Dictionary(speeches)
+        corpus = [dictionary.doc2bow(doc) for doc in speeches]
+        lda = LdaModel(num_topics=num_topics, passes=1, corpus=corpus)
+
+        # get coherence both umass and c_v
+        # will do one for each dataset and then take the average.
+        # this is because we dont have access to dates.
+        coherence_lda = CoherenceModel(
+            model = lda, texts=speeches, dictionary=dictionary,
+            coherence='u_mass'
+        )
+        print("U_MASS: ", coherence_lda.get_coherence())
+        coherence_lda = CoherenceModel(
+            model = lda, texts=speeches, dictionary=dictionary,
+            coherence='c_v'
+        )
+        print("C_V: ", coherence_lda.get_coherence())
+
+
 if __name__ == "__main__":
-    main()
-    get_graphs()
+    # main()
+    get_graphs_bert()
+    # train_lda()
    
 
 
